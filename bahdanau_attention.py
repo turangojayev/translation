@@ -167,9 +167,8 @@ class DecoderRNN(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, method, hidden_size):
+    def __init__(self, hidden_size):
         super(Attention, self).__init__()
-        self.method = method  # TODO: revert back if it doesn't become better
         self.hidden_size = hidden_size
         self.attention = nn.Linear(self.hidden_size * 2, hidden_size)
         self.v = nn.Parameter(torch.rand(hidden_size))
@@ -217,7 +216,7 @@ class AttentionDecoderRNN(nn.Module):
         super(AttentionDecoderRNN, self).__init__()
         self.embedding = nn.Embedding(num_embeddings, embedding_dim)
         self.dropout = nn.Dropout(dropout_p)
-        self.attention = Attention('concat', hidden_size)
+        self.attention = Attention(hidden_size)
         self.gru = nn.GRU(hidden_size + embedding_dim, hidden_size, dropout=dropout_p)
         self.out = nn.Linear(hidden_size, num_embeddings)
         self = self.cuda() if torch.cuda.is_available() else self
@@ -226,13 +225,10 @@ class AttentionDecoderRNN(nn.Module):
         word_embedded = self.embedding(input).view(1, input.size(0), -1)  # 1, B, H
         word_embedded = self.dropout(word_embedded)
 
-        # Calculate attention weights and apply to encoder outputs
-        # attn_weights = self.attention(last_hidden.squeeze(), encoder_outputs, source_lengths)
         attn_weights = self.attention(last_hidden[-1], encoder_outputs, source_lengths)
-
         context = attn_weights.bmm(encoder_outputs)  # Bx1xH
         context = context.transpose(0, 1)  # 1xBxH
-        # Combine embedded input word and attended context, run through RNN
+
         rnn_input = torch.cat((word_embedded, context), 2)
         output, hidden = self.gru(rnn_input, last_hidden)
         output = output.squeeze(0)  # (1,B,V)->(B,V)
